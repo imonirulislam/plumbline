@@ -1,0 +1,17 @@
+# Binaries
+/plumbline
+/dist/
+*.exe
+
+# Test & coverage output
+*.out
+coverage.*
+
+# Local env
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
