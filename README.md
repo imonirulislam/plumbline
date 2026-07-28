@@ -52,6 +52,10 @@ plumbline audit --owner <user-or-org>
 plumbline audit --owner acme --json          # machine-readable
 plumbline audit --owner acme --config policy.json
 plumbline audit --owner acme --fail-on-issues # exit 1 on any failure (CI gate)
+
+# Gitea / Forgejo (self-hosted — base URL required):
+export PLUMBLINE_TOKEN=<a gitea token>
+plumbline audit --provider gitea --base-url https://gitea.example.com --owner acme
 ```
 
 ### Flags
@@ -114,7 +118,7 @@ populate the fact in each adapter.
 ## Roadmap
 
 - [x] Read-only audit (GitHub)
-- [ ] Gitea connector
+- [x] Gitea connector (also serves Forgejo)
 - [ ] GitLab connector
 - [ ] Remediation: open PRs to fix drift (opt-in, dry-run first)
 - [ ] Config discovery (`.plumbline.json` / `.plumbline.yaml`)
