@@ -8,6 +8,7 @@ package github
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -294,6 +295,154 @@ func (c *Client) protectDefaultBranch(ctx context.Context, ref core.RepoRef) err
 		return fmt.Errorf("enable protection: HTTP %d: %s", status, snippet(respBody))
 	}
 	return nil
+}
+
+// ── FileRemediator ───────────────────────────────────────────────────────────
+
+const fixBranch = "plumbline/dependency-automation"
+
+// FileFixableChecks lists checks this connector can fix by opening a PR.
+func (c *Client) FileFixableChecks() []string { return []string{"dependency-automation"} }
+
+// OpenFix opens (or reuses) a PR remediating check for ref.
+func (c *Client) OpenFix(ctx context.Context, ref core.RepoRef, check string) (string, error) {
+	switch check {
+	case "dependency-automation":
+		return c.openRenovatePR(ctx, ref)
+	default:
+		return "", fmt.Errorf("github: cannot file-fix %q", check)
+	}
+}
+
+func (c *Client) openRenovatePR(ctx context.Context, ref core.RepoRef) (string, error) {
+	if ref.DefaultBranch == "" {
+		return "", errors.New("repo has no default branch")
+	}
+	// Idempotency: reuse an already-open plumbline PR.
+	if url, ok, err := c.existingPR(ctx, ref, fixBranch); err != nil {
+		return "", err
+	} else if ok {
+		return url, nil
+	}
+	sha, err := c.branchSHA(ctx, ref, ref.DefaultBranch)
+	if err != nil {
+		return "", err
+	}
+	if err := c.createRef(ctx, ref, fixBranch, sha); err != nil {
+		return "", err
+	}
+	if err := c.putFile(ctx, ref, fixBranch, "renovate.json", core.RenovateConfig(),
+		"chore: add renovate.json"); err != nil {
+		return "", err
+	}
+	return c.createPR(ctx, ref, fixBranch, ref.DefaultBranch,
+		"chore: add renovate.json",
+		"Adds a Renovate config so dependency updates are automated.\n\nOpened by plumbline.")
+}
+
+func (c *Client) existingPR(ctx context.Context, ref core.RepoRef, branch string) (string, bool, error) {
+	p := fmt.Sprintf("/repos/%s/%s/pulls?state=open&head=%s:%s",
+		url.PathEscape(ref.Owner), url.PathEscape(ref.Name), url.QueryEscape(ref.Owner), url.QueryEscape(branch))
+	status, body, _, err := c.get(ctx, p)
+	if err != nil {
+		return "", false, err
+	}
+	if status != http.StatusOK {
+		return "", false, fmt.Errorf("list PRs: HTTP %d: %s", status, snippet(body))
+	}
+	var prs []struct {
+		HTMLURL string `json:"html_url"`
+	}
+	if err := json.Unmarshal(body, &prs); err != nil {
+		return "", false, err
+	}
+	if len(prs) > 0 {
+		return prs[0].HTMLURL, true, nil
+	}
+	return "", false, nil
+}
+
+func (c *Client) branchSHA(ctx context.Context, ref core.RepoRef, branch string) (string, error) {
+	p := fmt.Sprintf("/repos/%s/%s/git/ref/heads/%s",
+		url.PathEscape(ref.Owner), url.PathEscape(ref.Name), url.PathEscape(branch))
+	status, body, _, err := c.get(ctx, p)
+	if err != nil {
+		return "", err
+	}
+	if status != http.StatusOK {
+		return "", fmt.Errorf("get ref %s: HTTP %d: %s", branch, status, snippet(body))
+	}
+	var r struct {
+		Object struct {
+			SHA string `json:"sha"`
+		} `json:"object"`
+	}
+	if err := json.Unmarshal(body, &r); err != nil {
+		return "", err
+	}
+	return r.Object.SHA, nil
+}
+
+func (c *Client) createRef(ctx context.Context, ref core.RepoRef, branch, sha string) error {
+	body, _ := json.Marshal(map[string]string{"ref": "refs/heads/" + branch, "sha": sha})
+	p := fmt.Sprintf("/repos/%s/%s/git/refs", url.PathEscape(ref.Owner), url.PathEscape(ref.Name))
+	status, respBody, _, err := c.do(ctx, http.MethodPost, p, body)
+	if err != nil {
+		return err
+	}
+	if status == http.StatusUnprocessableEntity {
+		return nil // branch already exists — fine, we'll commit onto it
+	}
+	if status < 200 || status >= 300 {
+		return fmt.Errorf("create branch %s: HTTP %d: %s", branch, status, snippet(respBody))
+	}
+	return nil
+}
+
+func (c *Client) putFile(ctx context.Context, ref core.RepoRef, branch, path string, content []byte, message string) error {
+	body, _ := json.Marshal(map[string]string{
+		"message": message,
+		"content": base64.StdEncoding.EncodeToString(content),
+		"branch":  branch,
+	})
+	enc := url.PathEscape(path)
+	p := fmt.Sprintf("/repos/%s/%s/contents/%s", url.PathEscape(ref.Owner), url.PathEscape(ref.Name), enc)
+	status, respBody, _, err := c.do(ctx, http.MethodPut, p, body)
+	if err != nil {
+		return err
+	}
+	if status == http.StatusUnprocessableEntity {
+		return nil // file already exists on the branch — proceed to the PR
+	}
+	if status < 200 || status >= 300 {
+		return fmt.Errorf("put %s: HTTP %d: %s", path, status, snippet(respBody))
+	}
+	return nil
+}
+
+func (c *Client) createPR(ctx context.Context, ref core.RepoRef, head, base, title, prBody string) (string, error) {
+	body, _ := json.Marshal(map[string]string{"title": title, "head": head, "base": base, "body": prBody})
+	p := fmt.Sprintf("/repos/%s/%s/pulls", url.PathEscape(ref.Owner), url.PathEscape(ref.Name))
+	status, respBody, _, err := c.do(ctx, http.MethodPost, p, body)
+	if err != nil {
+		return "", err
+	}
+	if status == http.StatusUnprocessableEntity {
+		// A PR for this branch may already exist — return it.
+		if u, ok, e := c.existingPR(ctx, ref, head); e == nil && ok {
+			return u, nil
+		}
+	}
+	if status < 200 || status >= 300 {
+		return "", fmt.Errorf("open PR: HTTP %d: %s", status, snippet(respBody))
+	}
+	var pr struct {
+		HTMLURL string `json:"html_url"`
+	}
+	if err := json.Unmarshal(respBody, &pr); err != nil {
+		return "", err
+	}
+	return pr.HTMLURL, nil
 }
 
 func nextLink(h http.Header) string {

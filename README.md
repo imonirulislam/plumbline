@@ -151,6 +151,21 @@ See [`examples/scheduled-audit.yml`](examples/scheduled-audit.yml) — a GitHub
 Actions workflow you can drop into any repo to audit an org on a cron, publish
 the report as an artifact, notify Slack, and gate on `--min-compliant`.
 
+### File fixes (`fix-files`)
+
+Some drift is fixed by adding a file, which means opening a PR. `fix-files` does
+that (same dry-run / `--only` / `--all` safety, idempotent — it reuses an
+already-open PR instead of duplicating):
+
+```bash
+plumbline fix-files --only owner/repo            # DRY-RUN: show the planned PR
+plumbline fix-files --only owner/repo --apply    # open the PR
+```
+
+v1 fixes `dependency-automation` on GitHub by opening a PR that adds a generic
+`renovate.json`. (CI configuration is deliberately **not** auto-generated — it's
+too stack-specific to template meaningfully.)
+
 ## Architecture
 
 Ports & adapters. Checks run against a **normalized model**; each connector
@@ -176,7 +191,7 @@ populate the fact in each adapter.
 - [x] GitLab connector
 - [x] Notifications (Slack Block Kit + generic webhook)
 - [x] Remediation: settings fixes (branch protection, default branch) — dry-run first (GitHub)
-- [ ] Remediation: file fixes via PRs (CI, renovate config)
+- [x] Remediation: file fixes via PRs (`fix-files` — adds `renovate.json`)
 - [x] Config discovery (`.plumbline.json`, auto-loaded from the working dir)
 - [ ] YAML config support
 

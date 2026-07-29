@@ -36,6 +36,8 @@ func main() {
 		os.Exit(cmdAudit(os.Args[2:]))
 	case "fix":
 		os.Exit(cmdFix(os.Args[2:]))
+	case "fix-files":
+		os.Exit(cmdFixFiles(os.Args[2:]))
 	case "version", "-v", "--version":
 		fmt.Printf("plumbline %s\n", version)
 	case "help", "-h", "--help":
@@ -159,8 +161,15 @@ func cmdAudit(args []string) int {
 	return 0
 }
 
-func cmdFix(args []string) int {
-	fs := flag.NewFlagSet("fix", flag.ExitOnError)
+type fixEngine func(context.Context, provider.Provider, core.Policy, []core.RepoRef, bool) ([]fix.RepoFix, error)
+
+func cmdFix(args []string) int      { return runFixCommand("fix", args, fix.Run) }
+func cmdFixFiles(args []string) int { return runFixCommand("fix-files", args, fix.RunFiles) }
+
+// runFixCommand backs both `fix` (settings) and `fix-files` (PRs); they share
+// flags and flow and differ only in the remediation engine.
+func runFixCommand(name string, args []string, engine fixEngine) int {
+	fs := flag.NewFlagSet(name, flag.ExitOnError)
 	owner := fs.String("owner", "", "owner whose repos to fix (or use --only for one repo)")
 	only := fs.String("only", "", "restrict to a single owner/repo")
 	providerName := fs.String("provider", "github", "connector ("+strings.Join(provider.Names(), ", ")+")")
@@ -172,24 +181,24 @@ func cmdFix(args []string) int {
 
 	// Safety: never write to a whole owner without an explicit --all.
 	if *apply && *only == "" && !*all {
-		fmt.Fprintln(os.Stderr, "fix: refusing to --apply to every repo; pass --only <owner/repo> for one, or --all")
+		fmt.Fprintf(os.Stderr, "%s: refusing to --apply to every repo; pass --only <owner/repo> for one, or --all\n", name)
 		return 2
 	}
 	if *owner == "" && *only == "" {
-		fmt.Fprintln(os.Stderr, "fix: --owner or --only is required")
+		fmt.Fprintf(os.Stderr, "%s: --owner or --only is required\n", name)
 		return 2
 	}
 
 	token := firstNonEmpty(os.Getenv("GITHUB_TOKEN"), os.Getenv("GH_TOKEN"), os.Getenv("PLUMBLINE_TOKEN"))
 	policy, src, err := core.DiscoverPolicy(*configPath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "fix:", err)
+		fmt.Fprintf(os.Stderr, "%s: %v\n", name, err)
 		return 2
 	}
 	fmt.Fprintf(os.Stderr, "policy: %s\n", policySource(src))
 	prov, err := provider.Open(*providerName, provider.Config{Token: token, BaseURL: *baseURL})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "fix:", err)
+		fmt.Fprintf(os.Stderr, "%s: %v\n", name, err)
 		return 2
 	}
 
@@ -198,21 +207,21 @@ func cmdFix(args []string) int {
 	if *only != "" {
 		ref, err := resolveRepo(ctx, prov, *only)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "fix:", err)
+			fmt.Fprintf(os.Stderr, "%s: %v\n", name, err)
 			return 1
 		}
 		repos = []core.RepoRef{ref}
 	} else {
 		repos, err = prov.ListRepos(ctx, *owner)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "fix:", err)
+			fmt.Fprintf(os.Stderr, "%s: %v\n", name, err)
 			return 1
 		}
 	}
 
-	fixes, err := fix.Run(ctx, prov, policy, repos, *apply)
+	fixes, err := engine(ctx, prov, policy, repos, *apply)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "fix:", err)
+		fmt.Fprintf(os.Stderr, "%s: %v\n", name, err)
 		return 2
 	}
 	fix.Print(os.Stdout, fixes, *apply)

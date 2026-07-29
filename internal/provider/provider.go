@@ -33,6 +33,18 @@ type Remediator interface {
 	Fix(ctx context.Context, ref core.RepoRef, check string, pol core.Policy) error
 }
 
+// FileRemediator is an optional capability: a connector that can remediate a
+// check by opening a pull request adding the missing config file(s). It's
+// separate from Remediator because opening a PR is heavier and social, distinct
+// from a synchronous settings change.
+type FileRemediator interface {
+	// FileFixableChecks lists the checks this connector can fix via a PR.
+	FileFixableChecks() []string
+	// OpenFix opens (or reuses) a PR remediating check for ref and returns its
+	// URL. Idempotent: an existing plumbline PR is returned rather than duplicated.
+	OpenFix(ctx context.Context, ref core.RepoRef, check string) (string, error)
+}
+
 // Config configures a connector. BaseURL is optional (for self-hosted
 // instances / Gitea); Token authenticates API calls.
 type Config struct {
