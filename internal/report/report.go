@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/imonirulislam/plumbline/internal/core"
@@ -82,4 +85,113 @@ func JSON(w io.Writer, reports []core.RepoReport) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(reports)
+}
+
+// Compliant reports whether a repo has no failing or errored checks.
+func Compliant(r core.RepoReport) bool {
+	for _, res := range r.Results {
+		if res.Verdict == core.Fail || res.Verdict == core.Err {
+			return false
+		}
+	}
+	return true
+}
+
+// FullyCompliant counts repos with no failing/errored checks.
+func FullyCompliant(reports []core.RepoReport) int {
+	n := 0
+	for _, r := range reports {
+		if Compliant(r) {
+			n++
+		}
+	}
+	return n
+}
+
+// SummaryData is the machine-readable rollup written to summary.json.
+type SummaryData struct {
+	GeneratedAt    string         `json:"generated_at"`
+	Total          int            `json:"total"`
+	FullyCompliant int            `json:"fully_compliant"`
+	PerCheck       map[string]int `json:"per_check"`      // pass count per check
+	VerdictCounts  map[string]int `json:"verdict_counts"` // total cells per verdict
+}
+
+// BuildSummary tallies reports into a SummaryData.
+func BuildSummary(reports []core.RepoReport, checks []string, generatedAt string) SummaryData {
+	s := SummaryData{
+		GeneratedAt:    generatedAt,
+		Total:          len(reports),
+		FullyCompliant: FullyCompliant(reports),
+		PerCheck:       map[string]int{},
+		VerdictCounts:  map[string]int{},
+	}
+	for _, c := range checks {
+		s.PerCheck[c] = 0
+	}
+	for _, r := range reports {
+		for _, res := range r.Results {
+			s.VerdictCounts[string(res.Verdict)]++
+			if res.Verdict == core.Pass {
+				s.PerCheck[res.Check]++
+			}
+		}
+	}
+	return s
+}
+
+// WriteFiles writes report.md, report.csv, and summary.json into dir.
+func WriteFiles(dir string, reports []core.RepoReport, checks []string, generatedAt string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "report.md"), []byte(markdown(reports, checks, generatedAt)), 0o644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "report.csv"), []byte(csv(reports, checks)), 0o644); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(BuildSummary(reports, checks, generatedAt), "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "summary.json"), append(data, '\n'), 0o644)
+}
+
+func markdown(reports []core.RepoReport, checks []string, generatedAt string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# plumbline report\n\n_Generated: %s_\n\n", generatedAt)
+	fmt.Fprintf(&b, "**%d/%d** repositories fully compliant.\n\n", FullyCompliant(reports), len(reports))
+	fmt.Fprintf(&b, "| Repo | %s |\n|%s\n", strings.Join(checks, " | "), strings.Repeat("---|", len(checks)+1))
+	for _, r := range reports {
+		byName := verdictsByName(r)
+		fmt.Fprintf(&b, "| %s", r.Repo)
+		for _, c := range checks {
+			fmt.Fprintf(&b, " | %s", string(byName[c]))
+		}
+		fmt.Fprint(&b, " |\n")
+	}
+	return b.String()
+}
+
+func csv(reports []core.RepoReport, checks []string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "repo,%s\n", strings.Join(checks, ","))
+	for _, r := range reports {
+		byName := verdictsByName(r)
+		fmt.Fprint(&b, r.Repo)
+		for _, c := range checks {
+			fmt.Fprintf(&b, ",%s", string(byName[c]))
+		}
+		fmt.Fprint(&b, "\n")
+	}
+	return b.String()
+}
+
+func verdictsByName(r core.RepoReport) map[string]core.Verdict {
+	m := make(map[string]core.Verdict, len(r.Results))
+	for _, res := range r.Results {
+		m[res.Check] = res.Verdict
+	}
+	return m
 }

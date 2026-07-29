@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `--out-dir`: write `report.md`, `report.csv`, and `summary.json`
+  (machine-readable counts: totals, per-check, verdict tallies) alongside the
+  usual stdout output.
+- `--min-compliant N`: regression gate — exit 1 if fewer than N repos are fully
+  compliant (a repo is compliant when it has no failing/errored checks).
 - Config discovery: when `--config` is omitted, `audit`/`fix` auto-load
   `.plumbline.json` (then `plumbline.json`) from the working directory, else use
   built-in defaults. The effective policy source is printed. Added
