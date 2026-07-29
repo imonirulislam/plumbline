@@ -16,6 +16,7 @@ import (
 	"github.com/imonirulislam/plumbline/internal/provider"
 	_ "github.com/imonirulislam/plumbline/internal/provider/gitea"  // register "gitea"
 	_ "github.com/imonirulislam/plumbline/internal/provider/github" // register "github"
+	_ "github.com/imonirulislam/plumbline/internal/provider/gitlab" // register "gitlab"
 	"github.com/imonirulislam/plumbline/internal/report"
 )
 

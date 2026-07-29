@@ -56,6 +56,10 @@ plumbline audit --owner acme --fail-on-issues # exit 1 on any failure (CI gate)
 # Gitea / Forgejo (self-hosted — base URL required):
 export PLUMBLINE_TOKEN=<a gitea token>
 plumbline audit --provider gitea --base-url https://gitea.example.com --owner acme
+
+# GitLab (gitlab.com, or --base-url for self-hosted):
+export PLUMBLINE_TOKEN=<a gitlab token>
+plumbline audit --provider gitlab --owner mygroup   # a group or a username
 ```
 
 ### Flags
@@ -119,7 +123,7 @@ populate the fact in each adapter.
 
 - [x] Read-only audit (GitHub)
 - [x] Gitea connector (also serves Forgejo)
-- [ ] GitLab connector
+- [x] GitLab connector
 - [ ] Remediation: open PRs to fix drift (opt-in, dry-run first)
 - [ ] Config discovery (`.plumbline.json` / `.plumbline.yaml`)
 
