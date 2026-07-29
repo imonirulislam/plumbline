@@ -228,16 +228,46 @@ func (c *Client) anyPathExists(ctx context.Context, ref core.RepoRef, paths []st
 // ── Remediator ───────────────────────────────────────────────────────────────
 
 // FixableChecks lists the checks this connector can remediate.
-func (c *Client) FixableChecks() []string { return []string{"branch-protection"} }
+func (c *Client) FixableChecks() []string { return []string{"branch-protection", "default-branch"} }
 
 // Fix remediates the named check for a repo.
-func (c *Client) Fix(ctx context.Context, ref core.RepoRef, check string) error {
+func (c *Client) Fix(ctx context.Context, ref core.RepoRef, check string, pol core.Policy) error {
 	switch check {
 	case "branch-protection":
 		return c.protectDefaultBranch(ctx, ref)
+	case "default-branch":
+		return c.renameDefaultBranch(ctx, ref, pol.DefaultBranch)
 	default:
 		return fmt.Errorf("github: cannot fix %q", check)
 	}
+}
+
+// renameDefaultBranch renames the repo's current default branch to target.
+// GitHub's rename endpoint moves the default pointer and retargets open PRs.
+func (c *Client) renameDefaultBranch(ctx context.Context, ref core.RepoRef, target string) error {
+	if target == "" {
+		return errors.New("policy default branch is empty")
+	}
+	if ref.DefaultBranch == "" {
+		return errors.New("repo has no default branch to rename")
+	}
+	if ref.DefaultBranch == target {
+		return nil
+	}
+	body, err := json.Marshal(map[string]string{"new_name": target})
+	if err != nil {
+		return err
+	}
+	p := fmt.Sprintf("/repos/%s/%s/branches/%s/rename",
+		url.PathEscape(ref.Owner), url.PathEscape(ref.Name), url.PathEscape(ref.DefaultBranch))
+	status, respBody, _, err := c.do(ctx, http.MethodPost, p, body)
+	if err != nil {
+		return err
+	}
+	if status < 200 || status >= 300 {
+		return fmt.Errorf("rename branch: HTTP %d: %s", status, snippet(respBody))
+	}
+	return nil
 }
 
 // protectDefaultBranch enables a minimal protection rule on the default branch:

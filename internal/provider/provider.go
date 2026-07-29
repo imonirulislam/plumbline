@@ -28,8 +28,9 @@ type Provider interface {
 type Remediator interface {
 	// FixableChecks lists the check names this connector can remediate.
 	FixableChecks() []string
-	// Fix remediates the named check for one repo. Called only on --apply.
-	Fix(ctx context.Context, ref core.RepoRef, check string) error
+	// Fix remediates the named check for one repo, using pol for target values
+	// (e.g. the desired default branch). Called only on --apply.
+	Fix(ctx context.Context, ref core.RepoRef, check string, pol core.Policy) error
 }
 
 // Config configures a connector. BaseURL is optional (for self-hosted

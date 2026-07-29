@@ -22,7 +22,7 @@ func (f *fakeProvider) Inspect(context.Context, core.RepoRef) (core.RepoState, e
 	return f.state, nil
 }
 func (f *fakeProvider) FixableChecks() []string { return []string{"branch-protection"} }
-func (f *fakeProvider) Fix(context.Context, core.RepoRef, string) error {
+func (f *fakeProvider) Fix(context.Context, core.RepoRef, string, core.Policy) error {
 	f.fixCalls++
 	return f.fixErr
 }

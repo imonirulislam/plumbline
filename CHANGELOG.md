@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `fix` can now remediate `default-branch` on GitHub: renames the current
+  default branch to the policy value (e.g. `master` → `main`), which retargets
+  open PRs. (Same dry-run/`--apply`/`--only`/`--all` safety as branch-protection.)
+- `examples/scheduled-audit.yml`: a reusable GitHub Actions workflow to run
+  plumbline on a schedule (artifact + Slack + `--min-compliant` gate).
 - Notifications: `--notify` sends a summary to enabled channels — **Slack**
   (Block Kit) and a **generic JSON webhook** — via a pluggable `notify.Notifier`
   registry. Each channel self-gates on its env var (`SLACK_WEBHOOK_URL` /

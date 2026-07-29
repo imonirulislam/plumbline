@@ -67,13 +67,13 @@ func Run(
 				continue // only fix genuine failures this connector can fix
 			}
 			if !apply {
-				rf.Items = append(rf.Items, Item{res.Check, Would, describe(res.Check, r)})
+				rf.Items = append(rf.Items, Item{res.Check, Would, describe(res.Check, r, pol)})
 				continue
 			}
-			if err := rem.Fix(ctx, r, res.Check); err != nil {
+			if err := rem.Fix(ctx, r, res.Check, pol); err != nil {
 				rf.Items = append(rf.Items, Item{res.Check, Failed, err.Error()})
 			} else {
-				rf.Items = append(rf.Items, Item{res.Check, Applied, describe(res.Check, r)})
+				rf.Items = append(rf.Items, Item{res.Check, Applied, describe(res.Check, r, pol)})
 			}
 		}
 		out = append(out, rf)
@@ -81,10 +81,12 @@ func Run(
 	return out, nil
 }
 
-func describe(checkName string, r core.RepoRef) string {
+func describe(checkName string, r core.RepoRef, pol core.Policy) string {
 	switch checkName {
 	case "branch-protection":
 		return fmt.Sprintf("enable protection on %q", r.DefaultBranch)
+	case "default-branch":
+		return fmt.Sprintf("rename default branch %q → %q", r.DefaultBranch, pol.DefaultBranch)
 	default:
 		return ""
 	}

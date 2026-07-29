@@ -140,8 +140,16 @@ plumbline fix --owner acme --apply --all        # apply across the owner (explic
 
 `--apply` is refused for a whole owner unless you pass `--all` — a single repo
 (`--only`) is the safe default target. Today the GitHub connector can fix
-`branch-protection` (enables a minimal protection rule on the default branch);
-more fixes and connectors implement the same `Remediator` capability over time.
+`branch-protection` (enables a minimal protection rule on the default branch)
+and `default-branch` (renames the default branch to the policy value, e.g.
+`master` → `main`, retargeting open PRs); more fixes and connectors implement
+the same `Remediator` capability over time.
+
+### Run it on a schedule
+
+See [`examples/scheduled-audit.yml`](examples/scheduled-audit.yml) — a GitHub
+Actions workflow you can drop into any repo to audit an org on a cron, publish
+the report as an artifact, notify Slack, and gate on `--min-compliant`.
 
 ## Architecture
 
@@ -167,7 +175,7 @@ populate the fact in each adapter.
 - [x] Gitea connector (also serves Forgejo)
 - [x] GitLab connector
 - [x] Notifications (Slack Block Kit + generic webhook)
-- [x] Remediation: settings fixes (branch protection) — dry-run first (GitHub)
+- [x] Remediation: settings fixes (branch protection, default branch) — dry-run first (GitHub)
 - [ ] Remediation: file fixes via PRs (CI, renovate config)
 - [x] Config discovery (`.plumbline.json`, auto-loaded from the working dir)
 - [ ] YAML config support
