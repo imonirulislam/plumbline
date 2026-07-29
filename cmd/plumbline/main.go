@@ -15,6 +15,7 @@ import (
 	"github.com/imonirulislam/plumbline/internal/check"
 	"github.com/imonirulislam/plumbline/internal/core"
 	"github.com/imonirulislam/plumbline/internal/fix"
+	"github.com/imonirulislam/plumbline/internal/notify"
 	"github.com/imonirulislam/plumbline/internal/provider"
 	_ "github.com/imonirulislam/plumbline/internal/provider/gitea"  // register "gitea"
 	_ "github.com/imonirulislam/plumbline/internal/provider/github" // register "github"
@@ -68,6 +69,7 @@ func cmdAudit(args []string) int {
 	failOnIssues := fs.Bool("fail-on-issues", false, "exit 1 if any check fails")
 	outDir := fs.String("out-dir", "", "also write report.md, report.csv, summary.json to this dir")
 	minCompliant := fs.Int("min-compliant", -1, "exit 1 if fewer than N repos are fully compliant (regression gate)")
+	notifyFlag := fs.Bool("notify", false, "send a summary to enabled notifiers (SLACK_WEBHOOK_URL / NOTIFY_WEBHOOK_URL)")
 	workers := fs.Int("workers", 8, "concurrent repo inspections")
 	_ = fs.Parse(args)
 
@@ -138,6 +140,11 @@ func cmdAudit(args []string) int {
 			return 1
 		}
 		fmt.Fprintf(os.Stderr, "reports written to %s (report.md, report.csv, summary.json)\n", *outDir)
+	}
+
+	if *notifyFlag {
+		scope := *providerName + ":" + *owner
+		notify.NotifyAll(ctx, notify.FromReports(reports, scope, os.Getenv("REPORT_URL")))
 	}
 
 	if *minCompliant >= 0 {

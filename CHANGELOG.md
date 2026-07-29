@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Notifications: `--notify` sends a summary to enabled channels — **Slack**
+  (Block Kit) and a **generic JSON webhook** — via a pluggable `notify.Notifier`
+  registry. Each channel self-gates on its env var (`SLACK_WEBHOOK_URL` /
+  `NOTIFY_WEBHOOK_URL`).
 - `--out-dir`: write `report.md`, `report.csv`, and `summary.json`
   (machine-readable counts: totals, per-check, verdict tallies) alongside the
   usual stdout output.
