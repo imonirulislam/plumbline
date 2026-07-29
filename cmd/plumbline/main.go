@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/imonirulislam/plumbline/internal/check"
 	"github.com/imonirulislam/plumbline/internal/core"
@@ -65,6 +66,8 @@ func cmdAudit(args []string) int {
 	baseURL := fs.String("base-url", "", "API base URL, for self-hosted instances")
 	asJSON := fs.Bool("json", false, "emit JSON instead of a table")
 	failOnIssues := fs.Bool("fail-on-issues", false, "exit 1 if any check fails")
+	outDir := fs.String("out-dir", "", "also write report.md, report.csv, summary.json to this dir")
+	minCompliant := fs.Int("min-compliant", -1, "exit 1 if fewer than N repos are fully compliant (regression gate)")
 	workers := fs.Int("workers", 8, "concurrent repo inspections")
 	_ = fs.Parse(args)
 
@@ -128,6 +131,21 @@ func cmdAudit(args []string) int {
 		report.Summary(os.Stdout, reports, check.Names())
 	}
 
+	if *outDir != "" {
+		ts := time.Now().UTC().Format("2006-01-02 15:04 UTC")
+		if err := report.WriteFiles(*outDir, reports, check.Names(), ts); err != nil {
+			fmt.Fprintln(os.Stderr, "audit:", err)
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "reports written to %s (report.md, report.csv, summary.json)\n", *outDir)
+	}
+
+	if *minCompliant >= 0 {
+		if fc := report.FullyCompliant(reports); fc < *minCompliant {
+			fmt.Fprintf(os.Stderr, "regression: %d/%d fully compliant < required %d\n", fc, len(reports), *minCompliant)
+			return 1
+		}
+	}
 	if *failOnIssues && anyFailure(reports) {
 		return 1
 	}

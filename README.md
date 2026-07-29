@@ -70,7 +70,9 @@ plumbline audit --provider gitlab --owner mygroup   # a group or a username
 | `--config`         | —        | JSON policy file (defaults if omitted)             |
 | `--base-url`       | —        | API base URL, for self-hosted instances            |
 | `--json`           | off      | Emit JSON instead of a table                       |
+| `--out-dir`        | —        | Also write `report.md`, `report.csv`, `summary.json` |
 | `--fail-on-issues` | off      | Exit 1 if any check fails (for CI)                 |
+| `--min-compliant`  | —        | Exit 1 if fewer than N repos are fully compliant (regression gate) |
 | `--workers`        | `8`      | Concurrent repo inspections                        |
 
 Token is read from `GITHUB_TOKEN`, `GH_TOKEN`, or `PLUMBLINE_TOKEN`.
