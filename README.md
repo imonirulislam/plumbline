@@ -73,6 +73,7 @@ plumbline audit --provider gitlab --owner mygroup   # a group or a username
 | `--out-dir`        | —        | Also write `report.md`, `report.csv`, `summary.json` |
 | `--fail-on-issues` | off      | Exit 1 if any check fails (for CI)                 |
 | `--min-compliant`  | —        | Exit 1 if fewer than N repos are fully compliant (regression gate) |
+| `--notify`         | off      | Send a summary to enabled notifiers (Slack / webhook via env) |
 | `--workers`        | `8`      | Concurrent repo inspections                        |
 
 Token is read from `GITHUB_TOKEN`, `GH_TOKEN`, or `PLUMBLINE_TOKEN`.
@@ -107,6 +108,22 @@ used. Copy [`.plumbline.example.json`](.plumbline.example.json) to
 | `branch-protection`     | the default branch is protected                               |
 | `ci`                    | a CI configuration exists (e.g. `.github/workflows`)          |
 | `dependency-automation` | Dependabot or Renovate is configured                          |
+
+## Notifications
+
+`--notify` sends a summary to every enabled channel (each self-gates on its env
+var, so unconfigured channels are skipped):
+
+```bash
+SLACK_WEBHOOK_URL=https://hooks.slack.com/... plumbline audit --owner acme --notify
+NOTIFY_WEBHOOK_URL=https://example.com/hook   plumbline audit --owner acme --notify
+```
+
+- **Slack** — a Block Kit message (header, compliant/attention counts, an
+  offender list capped with "…and N more", and a "View report" button if
+  `REPORT_URL` is set).
+- **Webhook** — the raw payload as JSON, for any endpoint (Teams/Discord relay,
+  custom service). Add a channel by implementing `notify.Notifier`.
 
 ## Remediation (`fix`)
 
@@ -149,6 +166,7 @@ populate the fact in each adapter.
 - [x] Read-only audit (GitHub)
 - [x] Gitea connector (also serves Forgejo)
 - [x] GitLab connector
+- [x] Notifications (Slack Block Kit + generic webhook)
 - [x] Remediation: settings fixes (branch protection) — dry-run first (GitHub)
 - [ ] Remediation: file fixes via PRs (CI, renovate config)
 - [x] Config discovery (`.plumbline.json`, auto-loaded from the working dir)
