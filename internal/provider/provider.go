@@ -22,6 +22,16 @@ type Provider interface {
 	Inspect(ctx context.Context, ref core.RepoRef) (core.RepoState, error)
 }
 
+// Remediator is an optional capability: a connector that can fix drift. A
+// connector advertises which checks it can remediate; the fix engine only ever
+// calls Fix for a check the connector listed and that a repo currently fails.
+type Remediator interface {
+	// FixableChecks lists the check names this connector can remediate.
+	FixableChecks() []string
+	// Fix remediates the named check for one repo. Called only on --apply.
+	Fix(ctx context.Context, ref core.RepoRef, check string) error
+}
+
 // Config configures a connector. BaseURL is optional (for self-hosted
 // instances / Gitea); Token authenticates API calls.
 type Config struct {

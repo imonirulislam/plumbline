@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `fix` command: remediate drift via a new optional `Remediator` connector
+  capability. **Dry-run by default**; `--apply` writes; `--only <owner/repo>`
+  targets one repo; group-wide `--apply` is refused without `--all`. Idempotent
+  (only currently-failing checks are touched). v1 fixes `branch-protection` on
+  GitHub (enables a minimal protection rule on the default branch).
 - GitLab connector (`--provider gitlab`; gitlab.com or self-hosted via
   `--base-url`). Owner may be a group (recurses subgroups) or a user. CI is
   detected via `.gitlab-ci.yml`; dependency-automation via Renovate.
