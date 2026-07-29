@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `fix-files` command: file-based remediation via PRs, using a new optional
+  `provider.FileRemediator` capability. v1 fixes `dependency-automation` on
+  GitHub by opening a PR that adds a generic `renovate.json`. Dry-run by
+  default; `--only`/`--all` scoping; idempotent (reuses an already-open PR). CI
+  workflows are intentionally not generated (too stack-specific).
 - `fix` can now remediate `default-branch` on GitHub: renames the current
   default branch to the policy value (e.g. `master` → `main`), which retargets
   open PRs. (Same dry-run/`--apply`/`--only`/`--all` safety as branch-protection.)
