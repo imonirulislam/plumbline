@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Gitea connector (`--provider gitea --base-url …`; also serves Forgejo).
+  Proves the connector abstraction with a second provider; CI detection covers
+  Gitea Actions (`.gitea/workflows`), GitHub Actions, and Drone/Woodpecker.
 - Initial release: read-only `audit` command for GitHub.
 - Provider-agnostic core model with a pluggable connector port (GitHub first).
 - Configurable policy (`default-branch`, `branch-protection`, `ci`,
