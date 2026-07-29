@@ -1,7 +1,6 @@
 # plumbline
 
 [![CI](https://github.com/imonirulislam/plumbline/actions/workflows/ci.yml/badge.svg)](https://github.com/imonirulislam/plumbline/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/imonirulislam/plumbline)](https://goreportcard.com/report/github.com/imonirulislam/plumbline)
 [![Go Reference](https://pkg.go.dev/badge/github.com/imonirulislam/plumbline.svg)](https://pkg.go.dev/github.com/imonirulislam/plumbline)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -101,6 +100,24 @@ express is reported as **`n/s`** (not supported) — never a failure.
 | `ci`                    | a CI configuration exists (e.g. `.github/workflows`)          |
 | `dependency-automation` | Dependabot or Renovate is configured                          |
 
+## Remediation (`fix`)
+
+`fix` closes drift. It re-runs the checks and, for each failing check a connector
+can remediate, either plans (dry-run) or applies the change. **Dry-run by
+default**; only checks that currently fail are touched (idempotent).
+
+```bash
+plumbline fix --only owner/repo                 # DRY-RUN: show what would change
+plumbline fix --only owner/repo --apply         # apply to one repo
+plumbline fix --owner acme                      # DRY-RUN across all of acme's repos
+plumbline fix --owner acme --apply --all        # apply across the owner (explicit)
+```
+
+`--apply` is refused for a whole owner unless you pass `--all` — a single repo
+(`--only`) is the safe default target. Today the GitHub connector can fix
+`branch-protection` (enables a minimal protection rule on the default branch);
+more fixes and connectors implement the same `Remediator` capability over time.
+
 ## Architecture
 
 Ports & adapters. Checks run against a **normalized model**; each connector
@@ -124,7 +141,8 @@ populate the fact in each adapter.
 - [x] Read-only audit (GitHub)
 - [x] Gitea connector (also serves Forgejo)
 - [x] GitLab connector
-- [ ] Remediation: open PRs to fix drift (opt-in, dry-run first)
+- [x] Remediation: settings fixes (branch protection) — dry-run first (GitHub)
+- [ ] Remediation: file fixes via PRs (CI, renovate config)
 - [ ] Config discovery (`.plumbline.json` / `.plumbline.yaml`)
 
 ## Contributing

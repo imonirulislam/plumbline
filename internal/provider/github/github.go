@@ -6,6 +6,7 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -49,16 +50,23 @@ type Client struct {
 
 func (c *Client) Name() string { return "github" }
 
-// get performs a GET and returns (status, body). It never returns an error for
-// non-2xx statuses — callers decide what a 404 etc. means.
-func (c *Client) get(ctx context.Context, path string) (int, []byte, http.Header, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+path, nil)
+// do performs an HTTP request and returns (status, body, headers). It never
+// returns an error for non-2xx statuses — callers decide what a 404 etc. means.
+func (c *Client) do(ctx context.Context, method, path string, reqBody []byte) (int, []byte, http.Header, error) {
+	var r io.Reader
+	if reqBody != nil {
+		r = bytes.NewReader(reqBody)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.base+path, r)
 	if err != nil {
 		return 0, nil, nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	if reqBody != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return 0, nil, nil, err
@@ -69,6 +77,11 @@ func (c *Client) get(ctx context.Context, path string) (int, []byte, http.Header
 		return resp.StatusCode, nil, resp.Header, err
 	}
 	return resp.StatusCode, body, resp.Header, nil
+}
+
+// get performs a GET.
+func (c *Client) get(ctx context.Context, path string) (int, []byte, http.Header, error) {
+	return c.do(ctx, http.MethodGet, path, nil)
 }
 
 var linkNextRe = regexp.MustCompile(`<([^>]+)>;\s*rel="next"`)
@@ -210,6 +223,47 @@ func (c *Client) anyPathExists(ctx context.Context, ref core.RepoRef, paths []st
 		}
 	}
 	return core.TriNo
+}
+
+// ── Remediator ───────────────────────────────────────────────────────────────
+
+// FixableChecks lists the checks this connector can remediate.
+func (c *Client) FixableChecks() []string { return []string{"branch-protection"} }
+
+// Fix remediates the named check for a repo.
+func (c *Client) Fix(ctx context.Context, ref core.RepoRef, check string) error {
+	switch check {
+	case "branch-protection":
+		return c.protectDefaultBranch(ctx, ref)
+	default:
+		return fmt.Errorf("github: cannot fix %q", check)
+	}
+}
+
+// protectDefaultBranch enables a minimal protection rule on the default branch:
+// no required reviews/checks (so it won't block a solo maintainer), but force
+// pushes and deletions are disabled — enough to mark the branch protected.
+func (c *Client) protectDefaultBranch(ctx context.Context, ref core.RepoRef) error {
+	if ref.DefaultBranch == "" {
+		return errors.New("no default branch to protect")
+	}
+	body := []byte(`{` +
+		`"required_status_checks":null,` +
+		`"enforce_admins":false,` +
+		`"required_pull_request_reviews":null,` +
+		`"restrictions":null,` +
+		`"allow_force_pushes":false,` +
+		`"allow_deletions":false}`)
+	p := fmt.Sprintf("/repos/%s/%s/branches/%s/protection",
+		url.PathEscape(ref.Owner), url.PathEscape(ref.Name), url.PathEscape(ref.DefaultBranch))
+	status, respBody, _, err := c.do(ctx, http.MethodPut, p, body)
+	if err != nil {
+		return err
+	}
+	if status < 200 || status >= 300 {
+		return fmt.Errorf("enable protection: HTTP %d: %s", status, snippet(respBody))
+	}
+	return nil
 }
 
 func nextLink(h http.Header) string {

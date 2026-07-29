@@ -13,6 +13,7 @@ import (
 
 	"github.com/imonirulislam/plumbline/internal/check"
 	"github.com/imonirulislam/plumbline/internal/core"
+	"github.com/imonirulislam/plumbline/internal/fix"
 	"github.com/imonirulislam/plumbline/internal/provider"
 	_ "github.com/imonirulislam/plumbline/internal/provider/gitea"  // register "gitea"
 	_ "github.com/imonirulislam/plumbline/internal/provider/github" // register "github"
@@ -31,6 +32,8 @@ func main() {
 	switch os.Args[1] {
 	case "audit":
 		os.Exit(cmdAudit(os.Args[2:]))
+	case "fix":
+		os.Exit(cmdFix(os.Args[2:]))
 	case "version", "-v", "--version":
 		fmt.Printf("plumbline %s\n", version)
 	case "help", "-h", "--help":
@@ -47,9 +50,10 @@ func usage() {
 
 Usage:
   plumbline audit --owner <user-or-org> [flags]
+  plumbline fix   --only <owner/repo> [--apply]   # remediate drift (dry-run by default)
   plumbline version
 
-Run "plumbline audit -h" for audit flags.
+Run "plumbline audit -h" or "plumbline fix -h" for flags.
 `, version)
 }
 
@@ -127,6 +131,88 @@ func cmdAudit(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+func cmdFix(args []string) int {
+	fs := flag.NewFlagSet("fix", flag.ExitOnError)
+	owner := fs.String("owner", "", "owner whose repos to fix (or use --only for one repo)")
+	only := fs.String("only", "", "restrict to a single owner/repo")
+	providerName := fs.String("provider", "github", "connector ("+strings.Join(provider.Names(), ", ")+")")
+	configPath := fs.String("config", "", "path to a JSON policy file (defaults if omitted)")
+	baseURL := fs.String("base-url", "", "API base URL, for self-hosted instances")
+	apply := fs.Bool("apply", false, "write changes (default: dry-run)")
+	all := fs.Bool("all", false, "allow group-wide --apply (refused otherwise)")
+	_ = fs.Parse(args)
+
+	// Safety: never write to a whole owner without an explicit --all.
+	if *apply && *only == "" && !*all {
+		fmt.Fprintln(os.Stderr, "fix: refusing to --apply to every repo; pass --only <owner/repo> for one, or --all")
+		return 2
+	}
+	if *owner == "" && *only == "" {
+		fmt.Fprintln(os.Stderr, "fix: --owner or --only is required")
+		return 2
+	}
+
+	token := firstNonEmpty(os.Getenv("GITHUB_TOKEN"), os.Getenv("GH_TOKEN"), os.Getenv("PLUMBLINE_TOKEN"))
+	policy, err := core.LoadPolicy(*configPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "fix:", err)
+		return 2
+	}
+	prov, err := provider.Open(*providerName, provider.Config{Token: token, BaseURL: *baseURL})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "fix:", err)
+		return 2
+	}
+
+	ctx := context.Background()
+	var repos []core.RepoRef
+	if *only != "" {
+		ref, err := resolveRepo(ctx, prov, *only)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "fix:", err)
+			return 1
+		}
+		repos = []core.RepoRef{ref}
+	} else {
+		repos, err = prov.ListRepos(ctx, *owner)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "fix:", err)
+			return 1
+		}
+	}
+
+	fixes, err := fix.Run(ctx, prov, policy, repos, *apply)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "fix:", err)
+		return 2
+	}
+	fix.Print(os.Stdout, fixes, *apply)
+	if fix.AnyFailed(fixes) {
+		return 1
+	}
+	return 0
+}
+
+// resolveRepo finds a single "owner/repo" among its owner's repos (so we get
+// its default branch and other attributes without a new port method).
+func resolveRepo(ctx context.Context, prov provider.Provider, slug string) (core.RepoRef, error) {
+	i := strings.LastIndex(slug, "/")
+	if i <= 0 || i == len(slug)-1 {
+		return core.RepoRef{}, fmt.Errorf("--only must be owner/repo, got %q", slug)
+	}
+	owner, name := slug[:i], slug[i+1:]
+	repos, err := prov.ListRepos(ctx, owner)
+	if err != nil {
+		return core.RepoRef{}, err
+	}
+	for _, r := range repos {
+		if r.Name == name {
+			return r, nil
+		}
+	}
+	return core.RepoRef{}, fmt.Errorf("repo %q not found under %q", name, owner)
 }
 
 func anyFailure(reports []core.RepoReport) bool {
