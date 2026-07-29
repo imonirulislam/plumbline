@@ -74,11 +74,12 @@ func cmdAudit(args []string) int {
 	}
 	token := firstNonEmpty(os.Getenv("GITHUB_TOKEN"), os.Getenv("GH_TOKEN"), os.Getenv("PLUMBLINE_TOKEN"))
 
-	policy, err := core.LoadPolicy(*configPath)
+	policy, src, err := core.DiscoverPolicy(*configPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "audit:", err)
 		return 2
 	}
+	fmt.Fprintf(os.Stderr, "policy: %s\n", policySource(src))
 	prov, err := provider.Open(*providerName, provider.Config{Token: token, BaseURL: *baseURL})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "audit:", err)
@@ -155,11 +156,12 @@ func cmdFix(args []string) int {
 	}
 
 	token := firstNonEmpty(os.Getenv("GITHUB_TOKEN"), os.Getenv("GH_TOKEN"), os.Getenv("PLUMBLINE_TOKEN"))
-	policy, err := core.LoadPolicy(*configPath)
+	policy, src, err := core.DiscoverPolicy(*configPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "fix:", err)
 		return 2
 	}
+	fmt.Fprintf(os.Stderr, "policy: %s\n", policySource(src))
 	prov, err := provider.Open(*providerName, provider.Config{Token: token, BaseURL: *baseURL})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "fix:", err)
@@ -224,6 +226,13 @@ func anyFailure(reports []core.RepoReport) bool {
 		}
 	}
 	return false
+}
+
+func policySource(s string) string {
+	if s == "" {
+		return "built-in defaults"
+	}
+	return s
 }
 
 func firstNonEmpty(vals ...string) string {
