@@ -1,0 +1,46 @@
+# Example: run plumbline on a schedule and publish the results.
+#
+# Copy this to `.github/workflows/plumbline-audit.yml` in any repo, set OWNER,
+# and add repository secrets:
+#   PLUMBLINE_TOKEN    a token with repo:read for the org you audit
+#   SLACK_WEBHOOK_URL  optional — enables the Slack summary
+#
+# It writes report.md/report.csv/summary.json as a build artifact and (if the
+# webhook secret is set) posts a Slack summary. Bump --min-compliant over time
+# so the job goes red only when compliance regresses.
+
+name: plumbline audit
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays, 06:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    env:
+      OWNER: your-org-or-user # <-- change me
+      PLUMBLINE_TOKEN: ${{ secrets.PLUMBLINE_TOKEN }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      REPORT_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.23"
+      - run: go install github.com/imonirulislam/plumbline/cmd/plumbline@latest
+      - name: Audit
+        run: |
+          plumbline audit \
+            --owner "$OWNER" \
+            --out-dir reports \
+            --notify \
+            --min-compliant 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: plumbline-report
+          path: reports/
