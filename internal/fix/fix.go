@@ -86,7 +86,7 @@ func describe(checkName string, r core.RepoRef, pol core.Policy) string {
 	case "branch-protection":
 		return fmt.Sprintf("enable protection on %q", r.DefaultBranch)
 	case "default-branch":
-		return fmt.Sprintf("rename default branch %q → %q", r.DefaultBranch, pol.DefaultBranch)
+		return fmt.Sprintf("set default branch %q → %q", r.DefaultBranch, pol.DefaultBranch)
 	default:
 		return ""
 	}
