@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- GitLab connector (`--provider gitlab`; gitlab.com or self-hosted via
+  `--base-url`). Owner may be a group (recurses subgroups) or a user. CI is
+  detected via `.gitlab-ci.yml`; dependency-automation via Renovate.
 - Gitea connector (`--provider gitea --base-url …`; also serves Forgejo).
   Proves the connector abstraction with a second provider; CI detection covers
   Gitea Actions (`.gitea/workflows`), GitHub Actions, and Drone/Woodpecker.
