@@ -91,6 +91,12 @@ Checks and their expected values are configurable. Defaults:
 Pass a subset with `--config policy.json` to override. A check a connector can't
 express is reported as **`n/s`** (not supported) — never a failure.
 
+**Config discovery:** if `--config` is omitted, plumbline looks in the working
+directory for `.plumbline.json` (then `plumbline.json`) and uses it
+automatically; otherwise the built-in defaults apply. It prints which policy it
+used. Copy [`.plumbline.example.json`](.plumbline.example.json) to
+`.plumbline.json` to get started.
+
 ## Checks
 
 | Check                   | Passes when …                                                 |
@@ -143,7 +149,8 @@ populate the fact in each adapter.
 - [x] GitLab connector
 - [x] Remediation: settings fixes (branch protection) — dry-run first (GitHub)
 - [ ] Remediation: file fixes via PRs (CI, renovate config)
-- [ ] Config discovery (`.plumbline.json` / `.plumbline.yaml`)
+- [x] Config discovery (`.plumbline.json`, auto-loaded from the working dir)
+- [ ] YAML config support
 
 ## Contributing
 

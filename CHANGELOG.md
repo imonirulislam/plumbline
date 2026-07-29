@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Config discovery: when `--config` is omitted, `audit`/`fix` auto-load
+  `.plumbline.json` (then `plumbline.json`) from the working directory, else use
+  built-in defaults. The effective policy source is printed. Added
+  `.plumbline.example.json`.
 - `fix` command: remediate drift via a new optional `Remediator` connector
   capability. **Dry-run by default**; `--apply` writes; `--only <owner/repo>`
   targets one repo; group-wide `--apply` is refused without `--all`. Idempotent

@@ -4,7 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 )
+
+// configNames are the policy files auto-discovered in the working directory,
+// in precedence order, when no explicit --config is given.
+var configNames = []string{".plumbline.json", "plumbline.json"}
 
 // Policy declares which checks run and their expected values. It is
 // intentionally generic: no provider-specific concepts leak in here. Ships with
@@ -50,4 +55,31 @@ func LoadPolicy(path string) (Policy, error) {
 		return p, fmt.Errorf("parse policy %s: %w", path, err)
 	}
 	return p, nil
+}
+
+// DiscoverPolicy resolves the effective policy and reports its source. If
+// explicitPath is set it wins; otherwise the working directory is searched for
+// a config file (see configNames); otherwise the built-in defaults are used.
+// The returned source is the config path/name, or "" for built-in defaults.
+func DiscoverPolicy(explicitPath string) (policy Policy, source string, err error) {
+	dir, e := os.Getwd()
+	if e != nil {
+		dir = "."
+	}
+	return discoverPolicyIn(dir, explicitPath)
+}
+
+func discoverPolicyIn(dir, explicitPath string) (Policy, string, error) {
+	if explicitPath != "" {
+		p, err := LoadPolicy(explicitPath)
+		return p, explicitPath, err
+	}
+	for _, name := range configNames {
+		path := filepath.Join(dir, name)
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			p, err := LoadPolicy(path)
+			return p, name, err
+		}
+	}
+	return DefaultPolicy(), "", nil
 }
