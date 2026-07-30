@@ -139,11 +139,19 @@ plumbline fix --owner acme --apply --all        # apply across the owner (explic
 ```
 
 `--apply` is refused for a whole owner unless you pass `--all` — a single repo
-(`--only`) is the safe default target. Today the GitHub connector can fix
-`branch-protection` (enables a minimal protection rule on the default branch)
-and `default-branch` (renames the default branch to the policy value, e.g.
-`master` → `main`, retargeting open PRs); more fixes and connectors implement
-the same `Remediator` capability over time.
+(`--only`) is the safe default target. All three connectors (GitHub, Gitea,
+GitLab) can fix:
+
+- `branch-protection` — enable a minimal protection rule on the default branch.
+- `default-branch` — make the default branch the policy value (e.g. `master` →
+  `main`). GitHub renames atomically (retargeting open PRs); Gitea and GitLab
+  have no atomic rename, so they create the target branch from the current
+  default and switch the default pointer (the old branch is left in place).
+
+> **Combined fix note:** if a repo fails *both* `default-branch` and
+> `branch-protection`, the branch-protection fix always targets the repo's
+> *current* default branch (re-read live), so one `--apply` protects the right
+> branch.
 
 ### Run it on a schedule
 
@@ -162,9 +170,10 @@ plumbline fix-files --only owner/repo            # DRY-RUN: show the planned PR
 plumbline fix-files --only owner/repo --apply    # open the PR
 ```
 
-v1 fixes `dependency-automation` on GitHub by opening a PR that adds a generic
-`renovate.json`. (CI configuration is deliberately **not** auto-generated — it's
-too stack-specific to template meaningfully.)
+It fixes `dependency-automation` by opening a PR/MR that adds a generic
+`renovate.json` — on GitHub, Gitea, and GitLab. (CI configuration is
+deliberately **not** auto-generated — it's too stack-specific to template
+meaningfully.)
 
 ## Architecture
 
@@ -175,14 +184,22 @@ adapts its host's API into that model.
 cmd/plumbline        CLI
 internal/core        normalized model + policy (no host specifics)
 internal/provider    connector port + registry
-  └─ github          GitHub adapter (stdlib net/http)
+  ├─ github          GitHub adapter    (github.go = read, remediate.go = write)
+  ├─ gitea           Gitea/Forgejo adapter
+  └─ gitlab          GitLab adapter
 internal/check       provider-agnostic checks + registry
-internal/report      table / JSON output
+internal/report      table / JSON / file output
+internal/fix         remediation engine (fix + fix-files)
+internal/notify      pluggable notifiers (Slack, webhook)
 ```
 
-Adding a connector = implement `provider.Provider` and register it. Adding a
-check = add a fact to `core.RepoState`, a function to `check.Registry`, and
-populate the fact in each adapter.
+Each connector splits read from write: `<connector>.go` implements
+`provider.Provider` (list + inspect); an optional `remediate.go` implements
+`provider.Remediator` (settings fixes) and `provider.FileRemediator` (PR/MR
+fixes). Adding a connector = implement `provider.Provider` and register it;
+remediation is opt-in per connector. Adding a check = add a fact to
+`core.RepoState`, a function to `check.Registry`, and populate the fact in each
+adapter.
 
 ## Roadmap
 
@@ -190,8 +207,8 @@ populate the fact in each adapter.
 - [x] Gitea connector (also serves Forgejo)
 - [x] GitLab connector
 - [x] Notifications (Slack Block Kit + generic webhook)
-- [x] Remediation: settings fixes (branch protection, default branch) — dry-run first (GitHub)
-- [x] Remediation: file fixes via PRs (`fix-files` — adds `renovate.json`)
+- [x] Remediation: settings fixes (branch protection, default branch) — dry-run first (GitHub, Gitea, GitLab)
+- [x] Remediation: file fixes via PRs/MRs (`fix-files` — adds `renovate.json`; GitHub, Gitea, GitLab)
 - [x] Config discovery (`.plumbline.json`, auto-loaded from the working dir)
 - [ ] YAML config support
 

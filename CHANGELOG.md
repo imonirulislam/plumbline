@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Remediation now works on **all three connectors**: `Remediator`
+  (`branch-protection`, `default-branch`) and `FileRemediator`
+  (`dependency-automation` → renovate.json) are implemented for Gitea and GitLab
+  as well as GitHub. Gitea/GitLab lack an atomic branch rename, so
+  `default-branch` creates the target from the current default and switches the
+  default pointer. The `branch-protection` fix re-reads the repo's live default
+  branch, so a repo failing both `default-branch` and `branch-protection`
+  converges in a single `--apply`.
 - `fix-files` command: file-based remediation via PRs, using a new optional
   `provider.FileRemediator` capability. v1 fixes `dependency-automation` on
   GitHub by opening a PR that adds a generic `renovate.json`. Dry-run by
