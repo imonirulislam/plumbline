@@ -1,0 +1,6 @@
+# plumbline policy (YAML). Copy to .plumbline.yaml and edit.
+# Keys match the JSON form exactly; omit any key to keep its built-in default.
+default_branch: main
+require_branch_protection: true
+require_ci: true
+require_dependency_automation: true
