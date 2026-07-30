@@ -67,7 +67,7 @@ plumbline audit --provider gitlab --owner mygroup   # a group or a username
 | ------------------ | -------- | -------------------------------------------------- |
 | `--owner`          | —        | User or org to audit (required)                    |
 | `--provider`       | `github` | Connector to use                                   |
-| `--config`         | —        | JSON policy file (defaults if omitted)             |
+| `--config`         | —        | JSON or YAML policy file (defaults if omitted)     |
 | `--base-url`       | —        | API base URL, for self-hosted instances            |
 | `--json`           | off      | Emit JSON instead of a table                       |
 | `--out-dir`        | —        | Also write `report.md`, `report.csv`, `summary.json` |
@@ -91,13 +91,26 @@ Checks and their expected values are configurable. Defaults:
 }
 ```
 
-Pass a subset with `--config policy.json` to override. A check a connector can't
-express is reported as **`n/s`** (not supported) — never a failure.
+Pass a subset with `--config policy.json` to override. Config files may be
+**JSON or YAML** (chosen by extension); the keys are identical either way. The
+same policy in YAML:
+
+```yaml
+default_branch: main
+require_branch_protection: true
+require_ci: true
+require_dependency_automation: true
+```
+
+A check a connector can't express is reported as **`n/s`** (not supported) —
+never a failure.
 
 **Config discovery:** if `--config` is omitted, plumbline looks in the working
-directory for `.plumbline.json` (then `plumbline.json`) and uses it
-automatically; otherwise the built-in defaults apply. It prints which policy it
-used. Copy [`.plumbline.example.json`](.plumbline.example.json) to
+directory for `.plumbline.yaml`, `.plumbline.yml`, `.plumbline.json` (then the
+non-dotfile `plumbline.*` variants) and uses the first it finds; otherwise the
+built-in defaults apply. It prints which policy it used. Copy
+[`.plumbline.example.yaml`](.plumbline.example.yaml) or
+[`.plumbline.example.json`](.plumbline.example.json) to `.plumbline.yaml` /
 `.plumbline.json` to get started.
 
 ## Checks
@@ -209,8 +222,8 @@ adapter.
 - [x] Notifications (Slack Block Kit + generic webhook)
 - [x] Remediation: settings fixes (branch protection, default branch) — dry-run first (GitHub, Gitea, GitLab)
 - [x] Remediation: file fixes via PRs/MRs (`fix-files` — adds `renovate.json`; GitHub, Gitea, GitLab)
-- [x] Config discovery (`.plumbline.json`, auto-loaded from the working dir)
-- [ ] YAML config support
+- [x] Config discovery (`.plumbline.{yaml,yml,json}`, auto-loaded from the working dir)
+- [x] YAML config support
 
 ## Contributing
 

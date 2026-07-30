@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- YAML policy files: `--config` and config discovery now accept `.yaml`/`.yml`
+  in addition to JSON (format chosen by extension; identical keys). Discovery
+  looks for `.plumbline.{yaml,yml,json}` then `plumbline.{yaml,yml,json}`,
+  preferring YAML. Adds `.plumbline.example.yaml` and pulls in the first runtime
+  dependency, `gopkg.in/yaml.v3`.
 - Remediation now works on **all three connectors**: `Remediator`
   (`branch-protection`, `default-branch`) and `FileRemediator`
   (`dependency-automation` → renovate.json) are implemented for Gitea and GitLab
